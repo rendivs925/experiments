@@ -313,7 +313,7 @@
         <h2>III. Mathematical Proof of Variance</h2>
         <p>
           The paper proves that vacuum permittivity ($\epsilon_0$) is a function
-          of the local ZPF energy density ($\rho_{zpf}$). By artificially
+          of local ZPF energy density ($\rho_{zpf}$). By artificially
           inducing a high-density "Squeeze" in the vacuum state, we drive
           $\epsilon_0$ toward zero.
         </p>
@@ -329,6 +329,34 @@
             in the external frame.
           </p>
         </div>
+
+        <h4 class="text-white font-semibold mt-8 mb-4">The Permittivity Modulation Relation</h4>
+        <p>
+          We propose the following fundamental relationship between resonant 
+          electromagnetic driving and vacuum permittivity:
+        </p>
+        <div class="math-card">
+          $$\epsilon_{resonant} = \epsilon_0 \left(1 - \kappa \cdot \sin^2(\omega_r t)\right)$$
+          <p class="text-xs text-dim mt-4">
+            Where $\kappa$ is the coupling coefficient (0 ≤ κ ≤ 1), $\omega_r$ is the 
+            resonance frequency, and $t$ is time. This periodic modulation of 
+            vacuum permittivity enables the metric manipulation central to UMRT.
+          </p>
+        </div>
+
+        <h4 class="text-white font-semibold mt-8 mb-4">Energy Density of the Modulated Vacuum</h4>
+        <p>
+          The energy density of the quantum vacuum under resonant modulation becomes:
+        </p>
+        <div class="math-card">
+          $$\rho_{ZPF}(\omega) = \frac{\hbar\omega^3}{8\pi^2 c^3} \cdot \frac{1}{e^{\hbar\omega/k_B T} - 1}$$
+          <p class="text-xs text-dim mt-4">
+            At zero temperature (T → 0), this reduces to the familiar 
+            $\rho_{ZPF} = \frac{1}{2}\hbar\omega$ for each mode. The UMRT 
+            framework exploits this baseline energy to power metric manipulation.
+          </p>
+        </div>
+
         <p>
           This formulation represents a significant departure from Special
           Relativity, which assumes $c$ is a universal constant. In UMRT, $c$
@@ -336,6 +364,21 @@
           that can be modified through careful engineering of the quantum
           vacuum's electromagnetic properties.
         </p>
+        
+        <h4 class="text-white font-semibold mt-8 mb-4">The Metric Tensor Modification</h4>
+        <p>
+          Under UMRT conditions, the spacetime metric $g_{\mu\nu}$ is modified according to:
+        </p>
+        <div class="math-card">
+          $$g_{\mu\nu}^{UMRT} = g_{\mu\nu}^{(0)} + h_{\mu\nu}^{(resonance)}$$
+          <p class="text-xs text-dim mt-4">
+            Where $g_{\mu\nu}^{(0)}$ is the background Minkowski (or Schwarzschild) 
+            metric and $h_{\mu\nu}^{(resonance)}$ is the perturbation induced by 
+            the resonant lattice. The perturbation satisfies the linearized 
+            Einstein field equations with source terms derived from the 
+            electromagnetic stress-energy tensor of the driving field.
+          </p>
+        </div>
       </div>
     </section>
 
@@ -436,6 +479,34 @@
             light, $A$ is the plate area, and $a$ is the separation distance.
             This force, though tiny at macroscopic scales, provides direct
             evidence that the vacuum contains extractable energy.
+          </p>
+        </div>
+
+        <h4 class="text-white font-semibold mt-8 mb-4">Derivation from Mode Summation</h4>
+        <p>
+          The Casimir force can be derived by considering the difference in 
+          zero-point energy between the confined and unconfined vacuum:
+        </p>
+        <div class="math-card">
+          $$E_{Casimir}(a) = \frac{\hbar c \pi^2 A}{720 a^3}\left(\sum_{n=1}^{\infty} n^{-3} - \frac{1}{3}\sum_{n=1}^{\infty} n^{-1}\right)$$
+          <p class="text-xs text-dim mt-4">
+            The divergent sums are regularized using the Riemann zeta function 
+            ζ(−1) = −1/12, yielding the well-known result. This demonstrates 
+            that boundary conditions fundamentally alter vacuum energy.
+          </p>
+        </div>
+
+        <h4 class="text-white font-semibold mt-8 mb-4">Spectral Energy Density of ZPF</h4>
+        <p>
+          The spectral energy density of zero-point fluctuations per unit volume is:
+        </p>
+        <div class="math-card">
+          $$u(\omega) = \frac{\hbar\omega^3}{8\pi^2 c^3}$$
+          <p class="text-xs text-dim mt-4">
+            Integrating over all frequencies from 0 to ∞ yields a divergent result, 
+            highlighting the need for regularization. The cosmological constant 
+            problem arises from this discrepancy between theoretical (divergent) 
+            and observed (finite) vacuum energy.
           </p>
         </div>
         
@@ -672,7 +743,7 @@
         
         <div class="math-card">
           <h4 class="text-xs mono text-cyan-500 mb-4 uppercase">
-            Conceptual Spacetime Geometry
+            The Alcubierre Metric
           </h4>
           <p class="text-white mb-4">
             The Alcubierre metric modifies the Minkowski metric to include
@@ -683,6 +754,35 @@
             around it.
           </p>
           $$ds^2 = -(1 - v_s^2 f(r_s)^2)dt^2 - 2v_s f(r_s) dx dt + dx^2 + dy^2 + dz^2$$
+          
+          <h4 class="text-white font-semibold mt-8 mb-4">The Warp Function</h4>
+          <p>
+            The standard Alcubierre warp function is defined as:
+          </p>
+          <div class="math-card">
+            $$f(r_s) = \frac{\tanh[\sigma(r_s + R)] - \tanh[\sigma(r_s - R)]}{2\tanh(\sigma R)}$$
+            <p class="text-xs text-dim mt-4">
+              Where $R$ is the bubble radius, $\sigma$ controls the wall thickness, 
+              and $r_s = \sqrt{(x - x_s(t))^2 + y^2 + z^2}$ is the distance from 
+              the bubble center. This function equals 1 inside the bubble and 
+              0 at infinity, creating the characteristic expansion/contraction 
+              of spacetime.
+            </p>
+          </div>
+
+          <h4 class="text-white font-semibold mt-8 mb-4">Energy-Momentum Requirements</h4>
+          <p>
+            The stress-energy tensor for the Alcubierre metric yields:
+          </p>
+          <div class="math-card">
+            $$T_{00} = -\frac{c^4 v_s^2 f'^2}{32\pi G r_s^2}$$
+            <p class="text-xs text-dim mt-4">
+              The negative energy density requirement is the primary obstacle to 
+              practical implementation. The original Alcubierre solution required 
+              $E \approx -3 \times 10^{52}$ J (equivalent to the mass-energy 
+              of the observable universe).
+            </p>
+          </div>
         </div>
         
         <h3>VIII.B Energy Requirements and Solutions</h3>
@@ -862,7 +962,20 @@
             useful energy can be harvested.
           </li>
         </ol>
-        
+
+        <h4 class="text-white font-semibold mt-8 mb-4">The Modified Einstein Field Equations</h4>
+        <p>
+          UMRT modifies the Einstein field equations to include vacuum coupling:
+        </p>
+        <div class="math-card">
+          $$G_{\mu\nu} + \Lambda_{eff} g_{\mu\nu} = \frac{8\pi G}{c^4} (T_{\mu\nu}^{matter} + T_{\mu\nu}^{vacuum})$$
+          <p class="text-xs text-dim mt-4">
+            Where $\Lambda_{eff} = \Lambda_0 + \Lambda_{resonance}$ is the effective 
+            cosmological constant, and $T_{\mu\nu}^{vacuum}$ represents the 
+            stress-energy contribution from modulated vacuum states.
+          </p>
+        </div>
+
         <h3>X.B The Resonance Mechanism</h3>
         <p>
           The core of UMRT is the creation of a "resonant cavity" that
