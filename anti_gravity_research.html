@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inertia Nullification Simulation (Three.js)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FIX: Changed from /jsm/ to /js/ to resolve module import errors and ensure THREE.OrbitControls is available globally -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #0d0d1e;
+        font-family: "Inter", sans-serif;
+        color: #e0e0ff;
+      }
+      #container {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
+      .info-panel {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        padding: 15px 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 255, 255, 0.4);
+        border: 2px solid #00ffff;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 90%;
+      }
+      .key-row {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .key {
+        background-color: #333;
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        min-width: 40px;
+        text-align: center;
+        border: 1px solid #666;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+      }
+      .entity-status {
+        font-size: 14px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        border-left: 5px solid;
+        transition: all 0.3s ease-out;
+      }
+      .rocket-status {
+        border-left-color: #ff3333;
+      }
+      .uap-status {
+        border-left-color: #33aaff;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 10px 0;
+        color: #00ffff;
+        text-align: center;
+      }
+      @media (max-width: 768px) {
+        .info-panel {
+          top: 10px;
+          padding: 10px 15px;
+          gap: 5px;
+        }
+        h1 {
+          font-size: 1.2rem;
+        }
+        .key-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 5px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div class="info-panel">
+        <h1>Inertia & Warp Simulation (Three.js)</h1>
+        <div style="color: #ccc; font-size: 0.9rem">
+          (Use mouse/touch to rotate/zoom the camera)
+        </div>
+        <div class="key-row">
+          <span class="key">R</span>
+          <span>(Rocket): Apply Newtonian Thrust</span>
+        </div>
+        <div class="key-row">
+          <span class="key">U</span>
+          <span>(UAP): Activate Nullification/Warp (Instant change)</span>
+        </div>
+        <div class="key-row">
+          <span class="key">SPACE</span>
+          <span>(Both): Apply Brake / Instant Stop</span>
+        </div>
+        <div class="entity-status rocket-status" id="rocket-info"></div>
+        <div class="entity-status uap-status" id="uap-info"></div>
+        <div style="margin-top: 5px; color: #ff00ff; font-weight: bold">
+          Boundary: +/- 25 units (X, Z axes)
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- CONSTANTS ---
+      const ROCKET_MASS = 10.0;
+      const ROCKET_FORCE = 0.5;
+      const UAP_MAX_SPEED = 15;
+      const DRAG_FACTOR = 0.99; // Simple air resistance/damping for conventional object
+      const MAX_BOUND = 25; // Boundary limit for X and Z axes
+      const STAR_COUNT = 10000;
+      const WARP_STRENGTH = 2.0;
+
+      let scene, camera, renderer, controls, starfield;
+      let clock = new THREE.Clock();
+
+      // Object State & Meshes
+      const state = {
+        rocket: {
+          mesh: null,
+          velocity: new THREE.Vector3(0, 0, 0),
+          acceleration: new THREE.Vector3(0, 0, 0),
+        },
+        uap: {
+          mesh: null,
+          velocity: new THREE.Vector3(0, 0, 0),
+          nullificationField: null,
+        },
+      };
+
+      // Input state
+      const input = {
+        isRocketThrusting: false,
+        isUAPThrusting: false,
+        isBraking: false,
+      };
+
+      // --- CORE FUNCTIONS ---
+
+      function init() {
+        const container = document.getElementById("container");
+
+        // 1. Scene Setup
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x0d0d1e, 10, 100);
+
+        // 2. Camera Setup
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000,
+        );
+        camera.position.set(0, 10, 20);
+
+        // 3. Renderer Setup
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // 4. Lights
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(10, 10, 10);
+        scene.add(directionalLight);
+
+        // 5. Controls
+        // OrbitControls is now available on the THREE global object due to the script source change
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+
+        // 6. Grid Helper (Visualizing the 3D space)
+        const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x888888);
+        scene.add(gridHelper);
+
+        // 7. Create Background Starfield
+        createStarfield();
+
+        // 8. Create Objects (Rocket and UAP)
+        createRocket();
+        createUAP();
+
+        // 9. Event Listeners
+        window.addEventListener("resize", onWindowResize);
+        document.addEventListener("keydown", onKeyDown);
+        document.addEventListener("keyup", onKeyUp);
+
+        // 10. Start the animation loop
+        animate();
+      }
+
+      /**
+       * Creates the Starfield background.
+       */
+      function createStarfield() {
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const color = new THREE.Color();
+
+        for (let i = 0; i < STAR_COUNT; i++) {
+          // Random position within a large cube (+/- 100 units)
+          const x = (Math.random() - 0.5) * 200;
+          const y = (Math.random() - 0.5) * 200;
+          const z = (Math.random() - 0.5) * 200;
+          positions.push(x, y, z);
+
+          // Random color (faint blue/white)
+          color.setHSL(0.6, 0.5, Math.random() * 0.5 + 0.5);
+          colors.push(color.r, color.g, color.b);
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(positions, 3),
+        );
+        geometry.setAttribute(
+          "color",
+          new THREE.Float32BufferAttribute(colors, 3),
+        );
+
+        const material = new THREE.PointsMaterial({
+          size: 0.15,
+          vertexColors: true,
+          sizeAttenuation: true,
+        });
+
+        starfield = new THREE.Points(geometry, material);
+        scene.add(starfield);
+      }
+
+      /**
+       * Creates the Newtonian Rocket object (Red, Cone-shaped).
+       */
+      function createRocket() {
+        const bodyGeometry = new THREE.CylinderGeometry(1, 0.5, 3, 32);
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+          color: 0xff3333,
+          metalness: 0.8,
+          roughness: 0.2,
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+
+        const noseGeometry = new THREE.ConeGeometry(1, 1, 32);
+        const noseMaterial = new THREE.MeshStandardMaterial({
+          color: 0xcc0000,
+          metalness: 0.8,
+          roughness: 0.2,
+        });
+        const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+        nose.position.y = 2;
+
+        state.rocket.mesh = new THREE.Group();
+        state.rocket.mesh.add(body);
+        state.rocket.mesh.add(nose);
+
+        state.rocket.mesh.position.set(-10, 1, 0);
+        state.rocket.mesh.rotation.x = Math.PI / 2;
+        state.rocket.mesh.userData.mass = ROCKET_MASS;
+        scene.add(state.rocket.mesh);
+      }
+
+      /**
+       * Creates the UAP object (Blue, Tic-Tac Capsule-shaped) with a Nullification Field.
+       */
+      function createUAP() {
+        const bodyGeometry = new THREE.CylinderGeometry(0.7, 0.7, 4, 32);
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+          color: 0x33aaff,
+          metalness: 0.8,
+          roughness: 0.2,
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+
+        state.uap.mesh = new THREE.Group();
+        state.uap.mesh.add(body);
+        state.uap.mesh.position.set(10, 1, 0);
+        state.uap.mesh.rotation.z = Math.PI / 2;
+
+        // Nullification Field (Glowing Sphere/Aura)
+        const auraGeometry = new THREE.SphereGeometry(3.5, 32, 32);
+        const auraMaterial = new THREE.MeshBasicMaterial({
+          color: 0x00ffff,
+          transparent: true,
+          opacity: 0.1,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+        });
+        state.uap.nullificationField = new THREE.Mesh(
+          auraGeometry,
+          auraMaterial,
+        );
+        state.uap.nullificationField.visible = false;
+        scene.add(state.uap.nullificationField);
+
+        scene.add(state.uap.mesh);
+      }
+
+      /**
+       * Handles the Newtonian physics update for the Rocket.
+       * @param {number} dt Delta time.
+       */
+      function updateRocket(dt) {
+        const r = state.rocket;
+
+        // 1. Calculate Acceleration (a = F/m)
+        r.acceleration.set(0, 0, 0);
+
+        if (input.isRocketThrusting) {
+          const thrustVector = new THREE.Vector3(0, 0, -ROCKET_FORCE);
+          thrustVector.applyQuaternion(r.mesh.quaternion);
+          r.acceleration.addScaledVector(thrustVector, 1 / ROCKET_MASS);
+        }
+
+        // 2. Apply Braking (Deceleration)
+        if (input.isBraking) {
+          const brakeVector = r.velocity.clone().negate().normalize();
+          r.acceleration.addScaledVector(brakeVector, 5 * ROCKET_FORCE);
+        }
+
+        // 3. Update Velocity (v = v0 + a * dt)
+        r.velocity.addScaledVector(r.acceleration, dt);
+
+        // 4. Apply Drag/Damping
+        r.velocity.multiplyScalar(DRAG_FACTOR);
+
+        // 5. Update Position (x = x0 + v * dt)
+        r.mesh.position.addScaledVector(r.velocity, dt);
+
+        // 6. Boundary Constraint Check (CLAMPS)
+        const pos = r.mesh.position;
+        // X and Z clamping: If outside boundary, push back slightly and reverse velocity
+        if (Math.abs(pos.x) > MAX_BOUND) {
+          pos.x = Math.sign(pos.x) * MAX_BOUND;
+          r.velocity.x *= -0.5; // Simulate a soft collision/rebound
+        }
+        if (Math.abs(pos.z) > MAX_BOUND) {
+          pos.z = Math.sign(pos.z) * MAX_BOUND;
+          r.velocity.z *= -0.5; // Simulate a soft collision/rebound
+        }
+        pos.y = 1; // Lock Y position to 1 (above the grid)
+
+        // 7. Update Orientation to face the direction of motion (Momentum)
+        if (r.velocity.length() > 0.01) {
+          const direction = r.velocity.clone().normalize();
+          const targetQuaternion = new THREE.Quaternion();
+          const forwardVector = new THREE.Vector3(0, 0, -1);
+          targetQuaternion.setFromUnitVectors(
+            forwardVector,
+            direction.negate(),
+          );
+          r.mesh.quaternion.slerp(targetQuaternion, 0.05); // Smooth rotation
+        }
+      }
+
+      /**
+       * Handles the Nullified Inertia physics update for the UAP.
+       * @param {number} dt Delta time.
+       */
+      function updateUAP(dt) {
+        const u = state.uap;
+
+        // 1. Calculate New Velocity (Instantaneous Change)
+        if (input.isUAPThrusting) {
+          // Inertia Nullified: Instantly set velocity in the desired direction
+          const cameraDirection = new THREE.Vector3();
+          camera.getWorldDirection(cameraDirection);
+          // Project onto the XZ plane and normalize
+          cameraDirection.y = 0;
+          cameraDirection.normalize();
+
+          u.velocity.copy(cameraDirection.multiplyScalar(UAP_MAX_SPEED));
+
+          u.nullificationField.visible = true;
+        } else if (input.isBraking) {
+          // Instant Stop
+          u.velocity.set(0, 0, 0);
+          u.nullificationField.visible = false;
+        } else {
+          // Decelerate when no input is given (inertia-free state, minimal drift)
+          u.velocity.multiplyScalar(0.95);
+          u.nullificationField.visible = false;
+        }
+
+        // 2. Update Position
+        u.mesh.position.addScaledVector(u.velocity, dt);
+        u.nullificationField.position.copy(u.mesh.position);
+
+        // 3. Boundary Constraint Check (CLAMPS)
+        const pos = u.mesh.position;
+        // X and Z clamping: If outside boundary, stop instantly
+        if (Math.abs(pos.x) > MAX_BOUND) {
+          pos.x = Math.sign(pos.x) * MAX_BOUND;
+          u.velocity.x = 0;
+        }
+        if (Math.abs(pos.z) > MAX_BOUND) {
+          pos.z = Math.sign(pos.z) * MAX_BOUND;
+          u.velocity.z = 0;
+        }
+        pos.y = 1; // Lock Y position to 1
+
+        // 4. Update Orientation (Instantaneous Alignment)
+        if (u.velocity.length() > 0.01) {
+          const direction = u.velocity.clone().normalize();
+          const targetQuaternion = new THREE.Quaternion();
+          const forwardVector = new THREE.Vector3(1, 0, 0);
+
+          targetQuaternion.setFromUnitVectors(forwardVector, direction);
+          u.mesh.quaternion.copy(targetQuaternion); // Instant rotation
+        }
+
+        // 5. Pulse the Nullification Field for effect
+        if (u.nullificationField.visible) {
+          const time = clock.getElapsedTime();
+          const scale = 1 + Math.sin(time * 8) * 0.1;
+          u.nullificationField.scale.set(scale, scale, scale);
+          u.nullificationField.material.opacity =
+            0.1 + Math.sin(time * 5) * 0.05;
+        }
+      }
+
+      /**
+       * Applies a visual warp effect to the stars when the UAP is thrusting.
+       */
+      function applyWarpEffect() {
+        if (!input.isUAPThrusting) {
+          // If not warping, reset the stars to their rest positions
+          if (starfield && starfield.geometry.attributes.initialPosition) {
+            starfield.geometry.attributes.position.copy(
+              starfield.geometry.attributes.initialPosition,
+            );
+            starfield.geometry.attributes.position.needsUpdate = true;
+          }
+          return;
+        }
+
+        const uapPos = state.uap.mesh.position;
+        const uapVel = state.uap.velocity;
+
+        const positions = starfield.geometry.attributes.position.array;
+        const count = positions.length / 3;
+
+        // Ensure we have a copy of the star's original positions
+        if (!starfield.geometry.attributes.initialPosition) {
+          starfield.geometry.setAttribute(
+            "initialPosition",
+            starfield.geometry.attributes.position.clone(),
+          );
+        }
+        const initialPositions =
+          starfield.geometry.attributes.initialPosition.array;
+
+        // Reusable vectors for calculation
+        const starVector = new THREE.Vector3();
+        const offset = new THREE.Vector3();
+        const warpDisplacement = new THREE.Vector3();
+        const normalizedVel = uapVel.clone().normalize();
+
+        for (let i = 0; i < count; i++) {
+          const i3 = i * 3;
+          const pX = initialPositions[i3];
+          const pY = initialPositions[i3 + 1];
+          const pZ = initialPositions[i3 + 2];
+
+          starVector.set(pX, pY, pZ);
+
+          // Calculate vector from UAP to star
+          offset.copy(starVector).sub(uapPos);
+          const distanceToUAP = offset.length();
+
+          // Calculate falloff: stronger near the UAP, weaker far away
+          // 1 / (d^2 + 10) provides a smooth, distance-dependent strength
+          const falloff = 1 / (distanceToUAP * distanceToUAP + 10);
+          const maxFalloff = 0.3;
+          const strength =
+            (Math.min(falloff, maxFalloff) * WARP_STRENGTH * uapVel.length()) /
+            UAP_MAX_SPEED; // Tie strength to speed
+
+          // Displacement direction: Away from the UAP along the axis of motion,
+          // simulating the stretching of space.
+          warpDisplacement.copy(normalizedVel).multiplyScalar(strength * 5); // 5 is a multiplier for visual impact
+
+          // Apply displacement
+          positions[i3] = pX + warpDisplacement.x;
+          positions[i3 + 1] = pY + warpDisplacement.y;
+          positions[i3 + 2] = pZ + warpDisplacement.z;
+        }
+
+        starfield.geometry.attributes.position.needsUpdate = true;
+      }
+
+      /**
+       * The main animation loop.
+       */
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = clock.getDelta();
+
+        // Update Physics
+        updateRocket(dt);
+        updateUAP(dt);
+
+        // Apply visual effects
+        applyWarpEffect();
+
+        // Update UI Information
+        updateInfoPanel();
+
+        // Update Camera Controls and Render
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      /**
+       * Updates the text panels with current velocity data.
+       */
+      function updateInfoPanel() {
+        const r = state.rocket;
+        const u = state.uap;
+
+        const rocketSpeed = r.velocity.length().toFixed(2);
+        const uapSpeed = u.velocity.length().toFixed(2);
+
+        document.getElementById("rocket-info").innerHTML = `
+                <span style="font-weight: bold;">Rocket (Newtonian):</span> Speed: ${rocketSpeed} u/s | 
+                ${input.isRocketThrusting ? "ACCELERATING (Slow Build)" : "DRIFTING (Momentum)"}
+            `;
+
+        document.getElementById("uap-info").innerHTML = `
+                <span style="font-weight: bold;">UAP (Nullified/Warp):</span> Speed: ${uapSpeed} u/s | 
+                ${input.isUAPThrusting ? "WARP FIELD ACTIVE (Instant Maneuver)" : "INERTIA-FREE (Decay)"}
+            `;
+      }
+
+      // --- EVENT HANDLERS ---
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function onKeyDown(event) {
+        switch (event.code) {
+          case "KeyR":
+            input.isRocketThrusting = true;
+            break;
+          case "KeyU":
+            input.isUAPThrusting = true;
+            break;
+          case "Space":
+            input.isBraking = true;
+            break;
+        }
+      }
+
+      function onKeyUp(event) {
+        switch (event.code) {
+          case "KeyR":
+            input.isRocketThrusting = false;
+            break;
+          case "KeyU":
+            input.isUAPThrusting = false;
+            break;
+          case "Space":
+            input.isBraking = false;
+            break;
+        }
+      }
+
+      // Start the simulation when the window loads
+      window.onload = init;
+    </script>
+  </body>
+</html>

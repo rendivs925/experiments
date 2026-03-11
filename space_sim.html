@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Elegant 3D Starfield Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+      /* Base styling for the immersive background */
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Inter", sans-serif;
+        background-color: #000000;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Information Overlay -->
+    <div
+      id="info"
+      class="absolute top-0 left-0 p-4 text-white text-sm opacity-75 z-10"
+    >
+      <h1 class="text-xl font-bold">COSMIC STARFIELD</h1>
+      <p>A realistic 3D space simulation with a moving, warping black hole.</p>
+      <p class="mt-2 text-xs">
+        Move mouse and use scroll wheel for smooth zoom.
+      </p>
+    </div>
+
+    <script>
+      // --- Three.js Starfield System Logic ---
+
+      // Global variables for Three.js
+      let scene, camera, renderer;
+      let particles, particleGeometry, particleMaterial;
+      let blackHoleCore;
+
+      // Temporary Vector3 objects reused for calculations inside the loop to optimize performance
+      let particleVector = new THREE.Vector3();
+      let directionVector = new THREE.Vector3();
+
+      // Constants for black hole physics and size (keeping it small and subtle)
+      const particleCount = 40000;
+      const BH_CORE_RADIUS = 15;
+      const BH_SUCK_RADIUS = 20;
+      // Gravity settings kept high for clear warping effect
+      const BH_GRAVITY_RADIUS = 500;
+      const BH_GRAVITY_STRENGTH = 0.3;
+      const BH_SWIRL_STRENGTH = 5.0;
+
+      // Constants for zoom control
+      const MIN_ZOOM = 100; // Closer zoom limit
+      const MAX_ZOOM = 4000; // Further zoom limit
+
+      // New variable for smooth zooming
+      let targetCameraZ = 1000;
+
+      let positions;
+      let mouseX = 0,
+        mouseY = 0;
+      let windowHalfX = window.innerWidth / 2;
+      let windowHalfY = window.innerHeight / 2;
+      let clock = new THREE.Clock();
+
+      // Helper function to create a circular particle texture using a Canvas
+      const createCircleTexture = () => {
+        const size = 64;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+
+        // Draw a white circle on a transparent background
+        context.beginPath();
+        context.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+        context.fillStyle = "white";
+        context.fill();
+
+        const texture = new THREE.CanvasTexture(canvas);
+        return texture;
+      };
+
+      const init = () => {
+        // 1. Scene Setup
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000); // Deep space black
+        scene.fog = new THREE.FogExp2(0x000000, 0.0005);
+
+        // 2. Camera Setup
+        camera = new THREE.PerspectiveCamera(
+          65,
+          window.innerWidth / window.innerHeight,
+          1,
+          2000,
+        );
+        camera.position.z = 1000;
+
+        // 3. Renderer Setup
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 4. Star Particles (Background)
+        particleGeometry = new THREE.BufferGeometry();
+        positions = new Float32Array(particleCount * 3);
+
+        const bounds = 2000;
+        for (let i = 0; i < particleCount * 3; i += 3) {
+          positions[i] = (Math.random() * 2 - 1) * bounds; // x
+          positions[i + 1] = (Math.random() * 2 - 1) * bounds; // y
+          positions[i + 2] = (Math.random() * 2 - 1) * bounds; // z
+        }
+
+        particleGeometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3),
+        );
+        const circleTexture = createCircleTexture();
+
+        particleMaterial = new THREE.PointsMaterial({
+          color: 0xbbeeff,
+          size: 4,
+          sizeAttenuation: true,
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          map: circleTexture,
+        });
+
+        particles = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particles);
+
+        // --- 5. Moving Black Hole Simulation ---
+        // Black Hole Core (Dark sphere)
+        blackHoleCore = new THREE.Mesh(
+          new THREE.SphereGeometry(BH_CORE_RADIUS, 32, 32),
+          new THREE.MeshBasicMaterial({ color: 0x000000 }),
+        );
+        scene.add(blackHoleCore);
+
+        // Event Listeners
+        document.addEventListener("mousemove", onDocumentMouseMove, false);
+        window.addEventListener("resize", onWindowResize, false);
+        // Added mouse wheel listener for zooming
+        document.addEventListener("wheel", onDocumentMouseWheel, false);
+      };
+
+      const onDocumentMouseMove = (event) => {
+        mouseX = (event.clientX - windowHalfX) * 1.5;
+        mouseY = (event.clientY - windowHalfY) * 1.5;
+      };
+
+      const onWindowResize = () => {
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      };
+
+      // Function to handle mouse wheel for zooming
+      const onDocumentMouseWheel = (event) => {
+        event.preventDefault();
+
+        // Adjust the target Z position based on scroll wheel delta
+        targetCameraZ += event.deltaY * 5;
+
+        // Clamp the target Z position to stay within defined limits
+        targetCameraZ = Math.min(Math.max(targetCameraZ, MIN_ZOOM), MAX_ZOOM);
+      };
+
+      const animate = () => {
+        requestAnimationFrame(animate);
+
+        const time = clock.elapsedTime;
+
+        // --- 1. Black Hole Movement (Increased speed and range) ---
+        // Oscillating path to move through the center of the starfield
+        blackHoleCore.position.x = Math.sin(time * 0.2) * 600;
+        blackHoleCore.position.y = Math.cos(time * 0.3) * 400;
+        blackHoleCore.position.z = Math.sin(time * 0.1) * 500;
+
+        // --- 2. Particle Gravity/Sucking Logic ---
+        const particlePositions = particles.geometry.attributes.position.array;
+        const bhPos = blackHoleCore.position;
+        const bounds = 2000;
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+          // Get particle position using the temporary vector
+          particleVector.set(
+            particlePositions[i],
+            particlePositions[i + 1],
+            particlePositions[i + 2],
+          );
+
+          const distance = particleVector.distanceTo(bhPos);
+
+          if (distance < BH_GRAVITY_RADIUS) {
+            // Calculate gravity scale: stronger pull closer to the BH center
+            const gravityScale =
+              (BH_GRAVITY_RADIUS - distance) / BH_GRAVITY_RADIUS;
+
+            // --- Radial Pull ---
+            directionVector.copy(bhPos).sub(particleVector).normalize();
+
+            const radialForceMagnitude = BH_GRAVITY_STRENGTH * gravityScale;
+
+            // Apply the radial pull (inward)
+            particlePositions[i] += directionVector.x * radialForceMagnitude;
+            particlePositions[i + 1] +=
+              directionVector.y * radialForceMagnitude;
+            particlePositions[i + 2] +=
+              directionVector.z * radialForceMagnitude;
+
+            // --- Tangential Swirl (Warping Effect) ---
+            // Calculate vector components relative to the black hole
+            const dx = particlePositions[i] - bhPos.x;
+            const dz = particlePositions[i + 2] - bhPos.z;
+
+            // Calculate tangential vector (perpendicular to radial in XZ plane)
+            const swirlX = -dz;
+            const swirlZ = dx;
+
+            // Normalize the swirl vector
+            const hypotenuse = Math.sqrt(swirlX * swirlX + swirlZ * swirlZ);
+            if (hypotenuse > 0) {
+              const normSwirlX = swirlX / hypotenuse;
+              const normSwirlZ = swirlZ / hypotenuse;
+
+              // Swirl magnitude is now significantly higher than radial force
+              const swirlMagnitude = radialForceMagnitude * BH_SWIRL_STRENGTH;
+
+              // Apply the tangential pull (swirling)
+              particlePositions[i] += normSwirlX * swirlMagnitude;
+              particlePositions[i + 2] += normSwirlZ * swirlMagnitude;
+            }
+
+            // Check for consumption (Suck Radius - Event Horizon)
+            if (distance < BH_SUCK_RADIUS) {
+              // Reset particle position far away (re-birth)
+              particlePositions[i] = (Math.random() * 2 - 1) * bounds;
+              particlePositions[i + 1] = (Math.random() * 2 - 1) * bounds;
+              particlePositions[i + 2] = (Math.random() * 2 - 1) * bounds;
+            }
+          }
+        }
+
+        particles.geometry.attributes.position.needsUpdate = true; // Tell Three.js the positions changed
+
+        // 3. Star Particles (Subtle overall rotation)
+        particles.rotation.x += 0.00005;
+        particles.rotation.y += 0.0001;
+
+        // 4. Camera Movement (Smooth parallax and zoom)
+        // Parallax movement (already smooth)
+        camera.position.x += (mouseX - camera.position.x) * 0.01;
+        camera.position.y += (-mouseY - camera.position.y) * 0.01;
+
+        // Smooth zoom interpolation
+        camera.position.z += (targetCameraZ - camera.position.z) * 0.05;
+
+        camera.lookAt(scene.position);
+
+        // 5. Render
+        renderer.render(scene, camera);
+      };
+
+      // Start the application
+      window.onload = function () {
+        init();
+        animate();
+      };
+    </script>
+  </body>
+</html>
